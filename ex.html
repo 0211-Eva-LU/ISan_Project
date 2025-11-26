@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Movie Swipe Game</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ddd;
+            font-family: Arial, sans-serif;
+        }
+
+        .game-wrapper {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* ===== 上半部：投票區（左 / 中 / 右） ===== */
+        .vote-area {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 80%;
+            max-width: 900px;
+            height: 70vh;
+            box-sizing: border-box;
+        }
+
+        /* 左右兩邊是透明的可點區域 */
+        .vote-zone {
+            flex: 1;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .vote-zone:hover {
+            background: rgba(0, 0, 0, 0.05);
+        }
+
+        .vote-left::after,
+        .vote-right::after {
+            position: relative;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #666;
+            font-size: 18px;
+        }
+
+        .vote-left::after {
+            content: "← 不喜歡";
+            float: left;
+            margin-left: 10px;
+        }
+
+        .vote-right::after {
+            content: "喜歡 →";
+            float: right;
+            margin-right: 10px;
+        }
+
+        /* 中間的電影卡片 */
+        .movie-card {
+            width: 40%;
+            max-width: 350px;
+            min-width: 260px;
+            background: #f4f4f4;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px;
+            box-sizing: border-box;
+
+            transition: transform 0.2s ease;
+            /* 滑動放開時的回彈動畫 */
+        }
+
+        .movie-poster {
+            width: 100%;
+            aspect-ratio: 3 / 4;
+            /* 直式海報比例 */
+            background: #c66;
+            border: 4px solid #5b7bff;
+            border-radius: 4px;
+            object-fit: cover;
+        }
+
+        /* 小框：片長 / 類型 / 分數 / 年份 */
+        .meta-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            margin-bottom: 12px;
+        }
+
+        .meta-tag {
+            padding: 4px 8px;
+            background: #cdbb6a;
+            color: #fff;
+            font-size: 12px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        /* 簡介文字區塊 */
+        .movie-desc {
+            width: 100%;
+            background: #f7f3f3;
+            padding: 12px;
+            border-radius: 6px;
+            box-sizing: border-box;
+            color: #b49b52;
+            font-size: 14px;
+            line-height: 1.4;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .movie-title {
+            margin-top: 8px;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        /* 下方提示文字 */
+        .hint {
+            margin-top: 10px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        /* ===== 推薦結果（下面三張卡） ===== */
+        .recommend-section {
+            width: 80%;
+            max-width: 900px;
+            margin-top: 30px;
+            padding: 20px;
+            box-sizing: border-box;
+            background: #eee;
+            border-radius: 10px;
+            display: none;
+            /* 一開始先隱藏，選完再顯示 */
+        }
+
+        .recommend-title {
+            font-size: 20px;
+            margin-bottom: 16px;
+        }
+
+        .recommend-list {
+            display: flex;
+            gap: 16px;
+            justify-content: space-between;
+        }
+
+        .rec-card {
+            flex: 1;
+            background: #f4f4f4;
+            border-radius: 8px;
+            padding: 12px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.12);
+        }
+
+        .rec-poster {
+            width: 100%;
+            aspect-ratio: 3 / 4;
+            background: #bbb;
+            border-radius: 4px;
+            object-fit: cover;
+        }
+
+        .rec-title {
+            margin-top: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .rec-meta {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+            text-align: center;
+        }
+
+        @media (max-width: 768px) {
+            .vote-area {
+                flex-direction: column;
+                height: auto;
+            }
+
+            .vote-zone {
+                display: none;
+                /* 手機版你之後可以改成 swipe */
+            }
+
+            .movie-card {
+                width: 70%;
+            }
+
+            .recommend-list {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="game-wrapper">
+
+        <!-- 上半部：投票 -->
+        <div class="vote-area">
+            <div class="vote-zone vote-left" id="dislike-zone"></div>
+
+            <div class="movie-card">
+                <img id="poster" class="movie-poster" src="" alt="movie poster">
+                <div class="movie-title" id="title"></div>
+
+                <div class="meta-row">
+                    <div class="meta-tag" id="meta-length"></div>
+                    <div class="meta-tag" id="meta-genre"></div>
+                    <div class="meta-tag" id="meta-score"></div>
+                    <div class="meta-tag" id="meta-year"></div>
+                </div>
+
+                <div class="movie-desc" id="overview"></div>
+            </div>
+
+            <div class="vote-zone vote-right" id="like-zone"></div>
+        </div>
+
+        <div class="hint">
+            點左邊 = 不喜歡，點右邊 = 喜歡，或拖曳中間卡片左右滑，總共選 10 部電影
+        </div>
+
+        <!-- 下半部：推薦結果 -->
+        <div class="recommend-section" id="recommend-section">
+            <div class="recommend-title">為你推薦的電影：</div>
+            <div class="recommend-list" id="recommend-list">
+                <!-- JS 動態塞三張 -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== 假資料：之後你可以改成從資料庫 / API 拿 =====
+        const movies = [
+            {
+                id: 1,
+                title: "電影 A",
+                poster: "https://via.placeholder.com/400x600?text=Movie+A",
+                length: "120 分鐘",
+                genre: "Drama",
+                score: "8.5",
+                year: "1994",
+                overview: "這是一段電影 A 的簡介文字，用來測試版面。"
+            },
+            {
+                id: 2,
+                title: "電影 B",
+                poster: "https://via.placeholder.com/400x600?text=Movie+B",
+                length: "95 分鐘",
+                genre: "Comedy",
+                score: "7.2",
+                year: "2003",
+                overview: "這是一段電影 B 的簡介，內容隨便打一些字。"
+            },
+            {
+                id: 3,
+                title: "電影 C",
+                poster: "https://via.placeholder.com/400x600?text=Movie+C",
+                length: "140 分鐘",
+                genre: "Sci-Fi",
+                score: "9.0",
+                year: "2010",
+                overview: "這是一段電影 C 的簡介，測試長一點長一點長一點長一點。"
+            },
+            // …之後自己再多加幾筆，到至少 10 筆
+        ];
+
+        let currentIndex = 0;
+        const liked = [];    // 存喜歡的電影 id
+        const disliked = []; // 不喜歡的（如果之後要用可以存）
+
+        const posterEl = document.getElementById('poster');
+        const titleEl = document.getElementById('title');
+        const lenEl = document.getElementById('meta-length');
+        const genreEl = document.getElementById('meta-genre');
+        const scoreEl = document.getElementById('meta-score');
+        const yearEl = document.getElementById('meta-year');
+        const overviewEl = document.getElementById('overview');
+
+        const dislikeZone = document.getElementById('dislike-zone');
+        const likeZone = document.getElementById('like-zone');
+
+        const recommendSection = document.getElementById('recommend-section');
+        const recommendList = document.getElementById('recommend-list');
+
+        const card = document.querySelector('.movie-card');
+
+        // 顯示目前這一部電影
+        function renderMovie() {
+            const m = movies[currentIndex];
+            if (!m) return;
+
+            // 換新電影時，把卡片歸位
+            card.style.transition = 'none';
+            card.style.transform = 'translateX(0)';
+            setTimeout(() => {
+                card.style.transition = 'transform 0.2s ease';
+            }, 0);
+
+            posterEl.src = m.poster;
+            posterEl.alt = m.title;
+            titleEl.textContent = m.title;
+            lenEl.textContent = m.length;
+            genreEl.textContent = m.genre;
+            scoreEl.textContent = `評分 ${m.score}`;
+            yearEl.textContent = m.year;
+            overviewEl.textContent = m.overview;
+        }
+
+        // 使用者按左/右
+        function vote(type) {
+            const m = movies[currentIndex];
+            if (!m) return;
+
+            if (type === 'like') {
+                liked.push(m.id);
+            } else {
+                disliked.push(m.id);
+            }
+
+            currentIndex++;
+
+            if (currentIndex >= movies.length || currentIndex >= 10) {
+                // 選完 10 部，或電影用完 → 顯示推薦結果
+                showRecommendations();
+            } else {
+                renderMovie();
+            }
+        }
+
+        // 左右區塊點擊投票
+        dislikeZone.addEventListener('click', () => vote('dislike'));
+        likeZone.addEventListener('click', () => vote('like'));
+
+        // ===== 滑鼠拖動 movie-card 左右滑 =====
+        let isDragging = false;
+        let startX = 0;
+        let currentX = 0;
+
+        // 按下開始拖
+        card.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            currentX = startX;
+            card.style.transition = 'none';  // 拖動中不要動畫
+        });
+
+        // 拖動中
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            currentX = e.clientX;
+            const diff = currentX - startX;   // 往右正、往左負
+            card.style.transform = `translateX(${diff}px)`;
+        });
+
+        // 放開滑鼠
+        window.addEventListener('mouseup', () => {
+            if (!isDragging) return;
+            isDragging = false;
+            handleSwipeEnd();
+        });
+
+        function handleSwipeEnd() {
+            const diff = currentX - startX;
+            const threshold = 80; // 超過 80px 才算有效滑動
+
+            // 恢復動畫
+            card.style.transition = 'transform 0.2s ease';
+
+            if (diff > threshold) {
+                // 👉 右滑 = 喜歡
+                card.style.transform = 'translateX(300px)';  // 滑出去畫面
+                setTimeout(() => {
+                    card.style.transform = 'translateX(0)';
+                    vote('like');
+                }, 200);
+            } else if (diff < -threshold) {
+                // 👈 左滑 = 不喜歡
+                card.style.transform = 'translateX(-300px)';
+                setTimeout(() => {
+                    card.style.transform = 'translateX(0)';
+                    vote('dislike');
+                }, 200);
+            } else {
+                // 沒滑夠，回到中間
+                card.style.transform = 'translateX(0)';
+            }
+        }
+
+        // ===== 這裡做推薦邏輯 =====
+        function showRecommendations() {
+            console.log('投票結果 liked:', liked, 'disliked:', disliked);
+
+            // 隱藏上面投票區
+            document.querySelector('.vote-area').style.display = 'none';
+            document.querySelector('.hint').style.display = 'none';
+
+            recommendSection.style.display = 'block';
+            recommendList.innerHTML = '';
+
+            // 暫時示範：就拿 movies 的前三部
+            const recs = movies.slice(0, 3);
+
+            recs.forEach(m => {
+                const card = document.createElement('div');
+                card.className = 'rec-card';
+                card.innerHTML = `
+                    <img class="rec-poster" src="${m.poster}" alt="${m.title}">
+                    <div class="rec-title">${m.title}</div>
+                    <div class="rec-meta">${m.year} ・ ${m.genre} ・ ${m.length} ・ 評分 ${m.score}</div>
+                `;
+                recommendList.appendChild(card);
+            });
+        }
+
+        // 初始化
+        renderMovie();
+    </script>
+</body>
+
+</html>
