@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+
+<head>
+    <meta charset="UTF-8">
+    <title>YouBike 2.0 地圖</title>
+
+    <!-- leaflet css -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+
+    <style>
+        table,
+        thead,
+        th,
+        tbody,
+        tr,
+        td {
+            border: 1px solid;
+            border-collapse: collapse;
+            padding: 4px 6px;
+        }
+
+        #map {
+            height: 480px;
+            margin-top: 10px;
+        }
+
+        button {
+            margin: 5px 0;
+            padding: 6px 12px;
+        }
+    </style>
+</head>
+
+<body>
+    <button id="btn_request">更新 YouBike 即時資訊</button>
+    <span id="last_update"></span>
+
+    <div id="map"></div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>站點代號</th> <!-- sno -->
+                <th>行政區</th> <!-- sarea -->
+                <th>站名</th> <!-- sna -->
+                <th>地址</th> <!-- ar -->
+                <th>可借車數</th> <!-- available_rent_bikes -->
+                <th>可還車位</th> <!-- available_return_bikes -->
+                <th>總車位</th> <!-- Quantity -->
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <!-- leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <script>
+        // 1. 初始化地圖（中心設在台北市政府附近）
+        let map = L.map('map').setView([25.0375, 121.5637], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // 2. 圖層群組（用來放全部 marker）
+        let layerGroup = null;
+        let arrLayers = [];
+
+        // 3. （選擇性）自訂 icon：這裡先用預設圖示，如果要改顏色，再換 iconUrl 即可
+        const bikeIcon = L.icon({
+            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            shadowSize: [41, 41]
+        });
+
+        // 4. 包成一個「更新資料」的 function
+        function loadYoubikeData() {
+            fetch('http://127.0.0.1:5000/youbike', {
+                method: "GET"
+            }).then(function (response) {
+                return response.json();
+            }).then(function (arr) {
+                // 清掉舊的 markers
+                if (layerGroup !== null) {
+                    layerGroup.clearLayers();
+                    map.removeLayer(layerGroup);
+                    layerGroup = null;
+                    arrLayers = [];
+                }
+
+                // 清空表格
+                let tbody = document.querySelector('table > tbody');
+                tbody.innerHTML = '';
+
+                // 逐筆處理 YouBike 資料
+                for (let o of arr) {
+                    // --- 表格 ---
+                    let tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>${o['sno']}</td>
+                        <td>${o['sarea']}</td>
+                        <td>${o['sna']}</td>
+                        <td>${o['ar']}</td>
+                        <td>${o['available_rent_bikes']}</td>
+                        <td>${o['available_return_bikes']}</td>
+                        <td>${o['Quantity']}</td>
+                    `;
+                    tbody.appendChild(tr);
+
+                    // --- marker ---
+                    let marker = L.marker(
+                        [o['latitude'], o['longitude']],
+                        { icon: bikeIcon }
+                    ).bindPopup(`
+                        <b>${o['sna']}</b><br>
+                        ${o['ar']}<br>
+                        可借：${o['available_rent_bikes']} 台<br>
+                        可還：${o['available_return_bikes']} 位<br>
+                        總車位：${o['Quantity']}
+                    `);
+
+                    // 點 marker 時在 console 印出該站資訊（方便 debug）
+                    marker.addEventListener('click', function (event) {
+                        console.log(o);
+                    });
+
+                    arrLayers.push(marker);
+                }
+
+                // 放到 layerGroup，再加到 map 上
+                layerGroup = L.layerGroup(arrLayers);
+                layerGroup.addTo(map);
+
+                // 更新畫面上的「最後更新時間」（用 infoTime 其中一筆）
+                if (arr.length > 0) {
+                    document.querySelector('#last_update').innerText =
+                        '（資料時間：' + arr[0]['updateTime'] + '）';
+                }
+            }).catch(function (err) {
+                console.error('取得 YouBike 資料失敗：', err);
+            });
+        }
+
+        // 5. 按鈕手動更新
+        document.querySelector('#btn_request').addEventListener('click', function (event) {
+            loadYoubikeData();
+        });
+
+        // 6. 一進頁面先更新一次
+        loadYoubikeData();
+
+        // 7. 每 1 分鐘自動更新一次（60,000 毫秒）
+        setInterval(loadYoubikeData, 60000);
+    </script>
+</body>
+
+</html>
