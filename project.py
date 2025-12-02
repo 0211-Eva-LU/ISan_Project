@@ -12,6 +12,12 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import json
 import time
+import os
+import requests
+import re
+import time
+from bs4 import BeautifulSoup as bs
+from datetime import datetime
 # from webdriver_manager.chrome import ChromeDriverManager
 
 # 建立 Service 物件，指定 chromedriver.exe 的路徑
@@ -25,42 +31,174 @@ options.add_argument("--disable-popup-blocking") # 停用 Chrome 的彈窗阻擋
 
 # 建立 Chrome 瀏覽器物件
 driver = webdriver.Chrome(options=options)
-driver.get("https://www.imdb.com/chart/top/?ref_=hm_nv_menu") #到首頁
+# driver.get("https://www.imdb.com/chart/top/?ref_=hm_nv_menu") #到首頁
 wait = WebDriverWait(driver, 10)
 
-
-
-
-
-
-error_info = []
 movie_link = []
+error_info=[]
 all_movie_detail=[]
 all_movie_review=[]
 
 
+
+
+
+
+
 #抓取250筆首頁資料
-search_all = driver.find_elements(By.CSS_SELECTOR,".ipc-metadata-list-summary-item")
 
-for index,info in enumerate(search_all):
-        try:
-            info_name = info.find_element(By.CSS_SELECTOR,"h3").text
-            info_link = info.find_element(By.CSS_SELECTOR,"a").get_attribute("href")
-            dec_elems = info.find_elements(By.CSS_SELECTOR, ".sc-432a38ea-6.fhDXpP.cli-title-metadata span")  # 這個 selector 你換成你實際用的
-            info_id =  info_link.split("https://www.imdb.com/title/")[1].split("/")[0]
-            dec_list = []
-            for dec in dec_elems:     # 這裡就會一個一個跑：這部電影的 dec1、dec2、dec3
-                dec_list.append(dec.text)
-        except (StaleElementReferenceException, NoSuchElementException) as e:
-                error_info.append({"爬取首頁錯誤":str(e),"網頁":driver.current_url,"筆數":index})
-                continue
-        movie_link.append({
-            "id":info_id,
-            "name": info_name,
-            "link": info_link,
-            "dec":dec_list
+def main():
+    try:
+        top_movie_url = "https://www.imdb.com/chart/top/"   
+        search_top(top_movie_url)
+    finally:
+        driver.quit()
 
-        })
+
+def loaddata():
+    with open ('movedetail.json','r',encoding='utf-8') as f:
+        data_detail=json.load(f)
+
+    with open('movereview.json','w',encoding='utf-8')as h:
+        data_review=json.load(r)
+
+        
+    return data_detail,data_review
+
+
+def renewdata(topurl):
+    global movie_link, error_info, all_movie_detail, all_movie_review
+    # driver = webdriver.Chrome(options=options)
+    driver.get(topurl) #到首頁
+    search_all = driver.find_elements(By.CSS_SELECTOR,".ipc-metadata-list-summary-item")
+    now_id = []
+    for index,info in enumerate(search_all):
+            try:
+                info_name = info.find_element(By.CSS_SELECTOR,"h3").text
+                info_link = info.find_element(By.CSS_SELECTOR,"a").get_attribute("href")
+                info_id =  info_link.split("https://www.imdb.com/title/")[1].split("/")[0]
+                sort = re.search(r"chttp_t_(\d+)",info_link)
+                if sort:
+                    info_sort = sort.group(1)
+                else :
+                    info_sort = None
+            except (StaleElementReferenceException, NoSuchElementException) as e:
+                    error_info.append({"爬取首頁錯誤":str(e),"網頁":driver.current_url,"筆數":index})
+                    continue
+                 
+            now_id.append(info_id)
+            movie_link.append({
+                "id":info_id,
+                "name": info_name,
+                "link": info_link,
+                "sort":info_sort
+            })
+    print("首頁抓取完畢!")
+
+    data_detail, data_review = loaddata()
+    old_id = []
+    for i in data_detail:
+        old_id.append(i['move_id'])
+
+    new_id = []
+    for i in now_id:
+        if i not in old_id:
+            new_id.append(i)
+
+    for mid in new_id :
+        for m in movie_link :
+            if m['id'] == mid :
+                detail = get_all_detail(m['link'])
+                if detail is None:
+                    continue
+            data_detail.append(detail)
+            review = get_all_review(m["id"])
+            data_review.extend(review)
+           
+            
+
+    
+
+    with open('movedetail.json','w',encoding='utf-8')as f:
+                json.dump(data_detail,f,indent=4,ensure_ascii=False)
+
+
+    with open('homepage.json','w',encoding='utf-8')as f:
+                json.dump(movie_link,f,indent=4,ensure_ascii=False)
+
+    
+    with open('movereview.json','w',encoding='utf-8')as f:
+                json.dump(data_review,f,indent=4,ensure_ascii=False)
+
+
+    with open('error.json','w',encoding='utf-8')as f:
+            json.dump(error_info,f,indent=4,ensure_ascii=False)
+        
+    
+    return movie_link
+
+
+
+
+def search_top(topurl):
+    global movie_link, error_info, all_movie_detail, all_movie_review
+    # driver = webdriver.Chrome(options=options)
+    driver.get(topurl) #到首頁
+    search_all = driver.find_elements(By.CSS_SELECTOR,".ipc-metadata-list-summary-item")
+    now_id = []
+    for index,info in enumerate(search_all):
+            try:
+                info_name = info.find_element(By.CSS_SELECTOR,"h3").text
+                info_link = info.find_element(By.CSS_SELECTOR,"a").get_attribute("href")
+                info_id =  info_link.split("https://www.imdb.com/title/")[1].split("/")[0]
+                sort = re.search(r"chttp_t_(\d+)",info_link)
+                if sort:
+                    info_sort = sort.group(1)
+                else :
+                    info_sort = None
+            except (StaleElementReferenceException, NoSuchElementException) as e:
+                    error_info.append({"爬取首頁錯誤":str(e),"網頁":driver.current_url,"筆數":index})
+                    continue
+                 
+            now_id.append(info_id)
+            movie_link.append({
+                "id":info_id,
+                "name": info_name,
+                "link": info_link,
+                "sort":info_sort
+            })
+    print("首頁抓取完畢!")
+    
+
+
+        
+        
+
+    for m in movie_link:
+        detail=get_all_detail(m['link'])
+        if detail is None:
+            continue
+        all_movie_detail.append(detail)
+        review = get_all_review(m["id"])
+        all_movie_review.extend(review)
+
+    with open('movedetail.json','w',encoding='utf-8')as f:
+                json.dump(all_movie_detail,f,indent=4,ensure_ascii=False)
+
+
+    with open('homepage.json','w',encoding='utf-8')as f:
+                json.dump(movie_link,f,indent=4,ensure_ascii=False)
+
+
+    with open('movereview.json','w',encoding='utf-8')as f:
+                json.dump(all_movie_review,f,indent=4,ensure_ascii=False)
+
+
+    with open('error.json','w',encoding='utf-8')as f:
+            json.dump(error_info,f,indent=4,ensure_ascii=False)
+        
+    
+    return movie_link
     
         
 
@@ -68,15 +206,51 @@ def get_all_detail(url):
     driver.get(url)
     styles_list= []
     casts_list=[]
+    directors = []
+    writers = []
+    year = level = length = None
+    movie_path = None
+    SCRAPE_TIME = datetime.now().strftime("%Y%m%d_%H%M%S")
     try:
         move_id = url.split("title/")[1].split("/")[0]
-        move_zhname=driver.find_element(By.CSS_SELECTOR,".hero__primary-text").text
         move_ehname=driver.find_element(By.CSS_SELECTOR,".sc-b41e510f-2.jUfqFl.baseAlt").text
         move_rating=driver.find_element(By.CSS_SELECTOR,".sc-4dc495c1-1.lbQcRY").text
         move_ratingpeople=driver.find_element(By.CSS_SELECTOR,".sc-4dc495c1-3.eNfgcR").text
         move_img=driver.find_element(By.CSS_SELECTOR,".ipc-lockup-overlay.ipc-focusable.ipc-focusable--constrained").get_attribute("href")
         move_cast=driver.find_elements(By.CSS_SELECTOR,".sc-10bde568-5.dWhYSc .sc-10bde568-1.jBmamV")
         move_styles=driver.find_elements(By.CSS_SELECTOR,".ipc-chip-list__scroller span")
+        crew_items = driver.find_elements(By.CSS_SELECTOR, "li[data-testid='title-pc-principal-credit']")
+    
+        for item in crew_items:
+            try:
+                label_elements = item.find_elements(By.CSS_SELECTOR, ".ipc-metadata-list-item__label")
+                if not label_elements:
+                    continue
+                    
+                label_text = label_elements[0].text.strip()
+                
+                name_links = item.find_elements(
+                    By.CSS_SELECTOR, 
+                    ".ipc-metadata-list-item__content-container a.ipc-metadata-list-item__list-content-item"
+                )
+                names = [link.text.strip() for link in name_links if link.text.strip()]
+                
+                if label_text == "Director":
+                    directors = names
+                elif label_text == "Writers":
+                    writers = names
+                elif label_text == "Stars":
+                    stars = names
+                    
+            except Exception as e:
+                print(f"Error extracting crew info for {label_text}: {e}")
+                continue
+
+    
+    
+    
+    
+    
     #     move_genre = wait.until(
     #     EC.presence_of_element_located(
     #         (By.CSS_SELECTOR, "[data-testid='storyline-genres'] a")
@@ -85,6 +259,17 @@ def get_all_detail(url):
         move_country=driver.find_element(By.CSS_SELECTOR,"[data-testid='title-details-origin'] a").text
         
     
+        move_dec= driver.find_elements(By.CSS_SELECTOR,".sc-af040695-0.iOwuHP ul li")
+        infos = [d.text for d in move_dec]
+
+        if len(infos) >= 1:
+            year = infos[0]
+        if len(infos) >= 2:
+            level = infos[1]
+        if len(infos) >= 3:
+            length  = infos[2]
+
+
 
         for styles in move_styles:
             styles_list.append(styles.text)
@@ -93,22 +278,29 @@ def get_all_detail(url):
         for cast in move_cast:
             casts_list.append(cast.text)
         
+        if move_img != None :
+            movie_path=imgdownload(move_img,move_id)
+        
         return {
          "move_id":move_id,
-         "zhname":move_zhname,
                     "ehname":move_ehname,
                     "rating":move_rating,
                     "ratingpeople":move_ratingpeople,
                     "move_img":move_img,
                     "styles":styles_list,
                     "move_casts":casts_list,
-                    # "move_genre":move_genre,
                     "move_country":move_country,
-
-                    }
+                    "year":year,
+                    "level":level,
+                    "length":length,
+                    "moviepath":movie_path,
+                    "directors":directors,
+                    "writers":writers,
+                    "scrapetime":SCRAPE_TIME}
     except (StaleElementReferenceException, NoSuchElementException) as e:
             error_info.append({"爬取內頁錯誤":str(e),"網頁":driver.current_url})
-            return None
+    
+    
           
 
    
@@ -119,6 +311,7 @@ def get_all_detail(url):
 
 
 def get_all_review(id):
+    
 
     driver.get(f'https://www.imdb.com/title/{id}/reviews/?sort=num_votes%2Cdesc&spoilers=EXCLUDE')
     try:
@@ -174,28 +367,64 @@ def get_all_review(id):
                             "review_content":review_content})
     return review_info
 
-for m in movie_link:
-    detail = get_all_detail(m['link'])
-    if detail is None:
-        continue
-    all_movie_detail.append(detail)
-    review = get_all_review(m["id"])
-    all_movie_review.extend(review)
+
     
 
 
-
-with open('movedetail.json','w',encoding='utf-8')as f:
-            json.dump(all_movie_detail,f,indent=4,ensure_ascii=False)
+def imgdownload(movie_img,move_id):
 
 
-with open('homepage.json','w',encoding='utf-8')as f:
-            json.dump(movie_link,f,indent=4,ensure_ascii=False)
+    folder_name = "projectimg"
+    if not os.path.exists(folder_name):
+        os.mkdir(folder_name,exist_ok=True)
+    else:
+        print("已建立過資料夾")
 
 
-with open('movereview.json','w',encoding='utf-8')as f:
-            json.dump(all_movie_review,f,indent=4,ensure_ascii=False)
+    # with open(f"{moviedata}.json",'r',encoding='utf-8') as f:
+    # #     data=json.load(f)
+
+    # move_data=[]
+    # for index,url_element in enumerate(data):
+    #     # print(sticker_element)
+    #     # print(sticker_element["data-preview"])
+    #     url_element = data[index]["move_img"]
+    #     move_id = data[index]["move_id"]
+    
+    #     move_data.append({"url":url_element,
+    #                     "id":move_id})
+    #找到圖片
 
 
-with open('error.json','w',encoding='utf-8')as f:
-            json.dump(error_info,f,indent=4,ensure_ascii=False)
+
+
+
+   
+
+
+    # for index,movie in enumerate(move_data):
+    driver.get(movie_img)
+    real_url=driver.find_element(By.CSS_SELECTOR,".sc-b66608db-2.cEjYQy img").get_attribute('src')
+    # r= requests.get(url)
+    img_content = requests.get(real_url).content
+    imgpath = f"{move_id}.jpg"
+           
+            
+    with open(f"projectimg/{move_id}.jpg","wb") as f:
+                    f.write(img_content)
+    return imgpath
+    # with open(f"{moviedata}.json","w",encoding="utf-8") as f:
+    #                 json.dump(data,f,indent=4,ensure_ascii=False)
+
+
+
+
+            
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
