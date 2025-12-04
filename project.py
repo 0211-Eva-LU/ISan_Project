@@ -28,6 +28,11 @@ options = webdriver.ChromeOptions()
 options.add_argument("--start-maximized") # Chrome 瀏覽器在啟動時最大化視窗
 options.add_argument("--incognito") # 無痕模式
 options.add_argument("--disable-popup-blocking") # 停用 Chrome 的彈窗阻擋功能。
+options.add_argument("--lang=en-US")
+options.add_experimental_option(
+    "prefs",
+    {"intl.accept_languages": "en,en_US"}
+)
 
 # 建立 Chrome 瀏覽器物件
 driver = webdriver.Chrome(options=options)
@@ -55,87 +60,87 @@ def main():
         driver.quit()
 
 
-def loaddata():
-    with open ('movedetail.json','r',encoding='utf-8') as f:
-        data_detail=json.load(f)
+# def loaddata():
+#     with open ('movedetail.json','r',encoding='utf-8') as f:
+#         data_detail=json.load(f)
 
-    with open('movereview.json','w',encoding='utf-8')as h:
-        data_review=json.load(r)
+#     with open('movereview.json','w',encoding='utf-8')as h:
+#         data_review=json.load(r)
 
         
-    return data_detail,data_review
+#     return data_detail,data_review
 
 
-def renewdata(topurl):
-    global movie_link, error_info, all_movie_detail, all_movie_review
-    # driver = webdriver.Chrome(options=options)
-    driver.get(topurl) #到首頁
-    search_all = driver.find_elements(By.CSS_SELECTOR,".ipc-metadata-list-summary-item")
-    now_id = []
-    for index,info in enumerate(search_all):
-            try:
-                info_name = info.find_element(By.CSS_SELECTOR,"h3").text
-                info_link = info.find_element(By.CSS_SELECTOR,"a").get_attribute("href")
-                info_id =  info_link.split("https://www.imdb.com/title/")[1].split("/")[0]
-                sort = re.search(r"chttp_t_(\d+)",info_link)
-                if sort:
-                    info_sort = sort.group(1)
-                else :
-                    info_sort = None
-            except (StaleElementReferenceException, NoSuchElementException) as e:
-                    error_info.append({"爬取首頁錯誤":str(e),"網頁":driver.current_url,"筆數":index})
-                    continue
+# def renewdata(topurl):
+#     global movie_link, error_info, all_movie_detail, all_movie_review
+#     # driver = webdriver.Chrome(options=options)
+#     driver.get(topurl) #到首頁
+#     search_all = driver.find_elements(By.CSS_SELECTOR,".ipc-metadata-list-summary-item")
+#     now_id = []
+#     for index,info in enumerate(search_all):
+#             try:
+#                 info_name = info.find_element(By.CSS_SELECTOR,"h3").text
+#                 info_link = info.find_element(By.CSS_SELECTOR,"a").get_attribute("href")
+#                 info_id =  info_link.split("https://www.imdb.com/title/")[1].split("/")[0]
+#                 sort = re.search(r"chttp_t_(\d+)",info_link)
+#                 if sort:
+#                     info_sort = sort.group(1)
+#                 else :
+#                     info_sort = None
+#             except (StaleElementReferenceException, NoSuchElementException) as e:
+#                     error_info.append({"爬取首頁錯誤":str(e),"網頁":driver.current_url,"筆數":index})
+#                     continue
                  
-            now_id.append(info_id)
-            movie_link.append({
-                "id":info_id,
-                "name": info_name,
-                "link": info_link,
-                "sort":info_sort
-            })
-    print("首頁抓取完畢!")
+#             now_id.append(info_id)
+#             movie_link.append({
+#                 "id":info_id,
+#                 "name": info_name,
+#                 "link": info_link,
+#                 "sort":info_sort
+#             })
+#     print("首頁抓取完畢!")
 
-    data_detail, data_review = loaddata()
-    old_id = []
-    for i in data_detail:
-        old_id.append(i['move_id'])
+#     data_detail, data_review = loaddata()
+#     old_id = []
+#     for i in data_detail:
+#         old_id.append(i['move_id'])
 
-    new_id = []
-    for i in now_id:
-        if i not in old_id:
-            new_id.append(i)
+#     new_id = []
+#     for i in now_id:
+#         if i not in old_id:
+#             new_id.append(i)
 
-    for mid in new_id :
-        for m in movie_link :
-            if m['id'] == mid :
-                detail = get_all_detail(m['link'])
-                if detail is None:
-                    continue
-            data_detail.append(detail)
-            review = get_all_review(m["id"])
-            data_review.extend(review)
-           
+#     for mid in new_id :
+#         for m in movie_link :
+#             if m['id'] == mid :
+#                 detail = get_all_detail(m['link'])
+#                 if detail is None:
+#                     break
+#                 data_detail.append(detail)
+#             review = get_all_review(m["id"])
+#             data_review.extend(review)
+#             break
             
 
     
 
-    with open('movedetail.json','w',encoding='utf-8')as f:
-                json.dump(data_detail,f,indent=4,ensure_ascii=False)
+    # with open('movedetail.json','w',encoding='utf-8')as f:
+    #             json.dump(data_detail,f,indent=4,ensure_ascii=False)
 
 
-    with open('homepage.json','w',encoding='utf-8')as f:
-                json.dump(movie_link,f,indent=4,ensure_ascii=False)
+    # with open('homepage.json','w',encoding='utf-8')as f:
+    #             json.dump(movie_link,f,indent=4,ensure_ascii=False)
 
     
-    with open('movereview.json','w',encoding='utf-8')as f:
-                json.dump(data_review,f,indent=4,ensure_ascii=False)
+    # with open('movereview.json','w',encoding='utf-8')as f:
+    #             json.dump(data_review,f,indent=4,ensure_ascii=False)
 
 
-    with open('error.json','w',encoding='utf-8')as f:
-            json.dump(error_info,f,indent=4,ensure_ascii=False)
+    # with open('error.json','w',encoding='utf-8')as f:
+    #         json.dump(error_info,f,indent=4,ensure_ascii=False)
         
     
-    return movie_link
+    # return movie_link
 
 
 
@@ -144,6 +149,7 @@ def search_top(topurl):
     global movie_link, error_info, all_movie_detail, all_movie_review
     # driver = webdriver.Chrome(options=options)
     driver.get(topurl) #到首頁
+    time.sleep(10)
     search_all = driver.find_elements(By.CSS_SELECTOR,".ipc-metadata-list-summary-item")
     now_id = []
     for index,info in enumerate(search_all):
@@ -151,7 +157,8 @@ def search_top(topurl):
                 info_name = info.find_element(By.CSS_SELECTOR,"h3").text
                 info_link = info.find_element(By.CSS_SELECTOR,"a").get_attribute("href")
                 info_id =  info_link.split("https://www.imdb.com/title/")[1].split("/")[0]
-                sort = re.search(r"chttp_t_(\d+)",info_link)
+                sort = re.search(r"chttp_i_(\d+)",info_link)
+       
                 if sort:
                     info_sort = sort.group(1)
                 else :
@@ -376,7 +383,7 @@ def imgdownload(movie_img,move_id):
 
     folder_name = "projectimg"
     if not os.path.exists(folder_name):
-        os.mkdir(folder_name,exist_ok=True)
+        os.makedirs(folder_name,exist_ok=True)
     else:
         print("已建立過資料夾")
 
